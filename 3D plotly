@@ -1,4 +1,5 @@
-###
+###R
+##Refer to STutility packages and adjust the coordinates of each sections
 rm(list = ls())
 gc()
 library(Seurat)
@@ -31,10 +32,10 @@ ggplot(stack_3d, aes(x, 2e3 - y)) +
 
 # interpolated.data <- FeaturePlot3D(se, features = "DJKW.28045", return.data = TRUE)
 
-##单独提取出来画图
+##Extract and draw separately
 object <- se
 features <- "DJKW.22487"
-add.margins = 0#可以修改
+add.margins = 0#
 spots = NULL
 mode = "cloud"
 pts.downsample = 5e+05
@@ -47,7 +48,7 @@ pt.size = NULL
 cols = c("navyblue", "cyan", "yellow", "red", "dark red")
 scene = "scene1"
 dark.theme = FALSE
-pt.size <- 0.8#可以修改
+pt.size <- 0.8#
 
 st.object <- GetStaffli(object)
 scatter.data <- st.object@scatter.data
@@ -97,16 +98,14 @@ plot_ly(interpolated.data, scene = scene,
                                                      showscale = FALSE, size = pt.size, opacity = pt.alpha)) %>% 
   add_markers() %>% layout(title = features,
                            paper_bgcolor = ifelse(dark.theme, 
-                                                  "rgb(0, 0, 0)", "rgb(255, 255, 255)"), scene = list(zaxis = list(title = "", range = c(-add.margins, max(interpolated.data$z) + 
-                                                                                                                                           add.margins), showticks = FALSE, showticklabels = FALSE), 
-                                                                                                      xaxis = list(title = "", showticks = FALSE, 
-                                                                                                                   showticklabels = FALSE), yaxis = list(title = "", 
-                                                                                                                                                         showticks = FALSE, showticklabels = FALSE)))
+                           "rgb(0, 0, 0)", "rgb(255, 255, 255)"), scene = list(zaxis = list(title = "", range = c(-add.margins, max(interpolated.data$z) + 
+                            add.margins), showticks = FALSE, showticklabels = FALSE), 
+                            xaxis = list(title = "", showticks = FALSE,showticklabels = FALSE), yaxis = list(title = "",showticks = FALSE, showticklabels = FALSE)))
 
 
 
 
-####平移修改图
+####Translation and Overlay
 a <- interpolated.data[which(interpolated.data$z=="1"),]
 a$truex <- xmax-a$x
 a[which( (0< a$truex & a$truex<900) &(0<a$y & a$y<600)),3] <- c(5.6)
@@ -132,7 +131,7 @@ for (i in unique(text1$z)) {
   b <- text
   c <- rbind(c,b)
 }
-##########第一张切片
+##########The first slice
 text <- c[which(c$z=="5.6"),]
 text$bestx <- text$newx * cos(52*pi/180) - text$newy * sin(52*pi/180) 
 text$besty <- text$newx * sin(52*pi/180) + text$newy * cos(52*pi/180) 
@@ -212,7 +211,7 @@ for (i in unique(text1$z)) {
   b <- text
   c <- rbind(c,b)
 }
-#######第二章切片
+#######The second slice
 # text <- c[which(c$z=="4.5"),]
 # text$bestx <- text$newx * cos(12.2*pi/180) - text$newy * sin(12.2*pi/180) 
 # text$besty <- text$newx * sin(12.2*pi/180) + text$newy * cos(12.2*pi/180) 
@@ -290,8 +289,8 @@ for (i in unique(text1$z)) {
   b <- text
   c <- rbind(c,b)
 }
-#########第三章切片
 
+#########The third slice
 text <- c[which(c$z=="3.7"),]
 text$bestx <- text$newx * cos(10*pi/180) - text$newy * sin(10*pi/180) 
 text$besty <- text$newx * sin(10*pi/180) + text$newy * cos(10*pi/180) 
@@ -384,7 +383,7 @@ for (i in unique(text1$z)) {
   b <- text
   c <- rbind(c,b)
 }
-###########第四章图片旋转
+###########The fourth slice
 text <- c[which(c$z=="2.5"),]
 text$bestx <- text$newx * cos((40-5.8)*pi/180) - text$newy * sin((40-5.8)*pi/180) 
 text$besty <- text$newx * sin((40-5.8)*pi/180) + text$newy * cos((40-5.8)*pi/180) 
@@ -458,6 +457,7 @@ text <- rbind(phot1,phot2,phot3,phot4)
 # text <- rbind(phot3,phot4)
 add.margins=0
 
+########combine
 table(text$z)
 text[which(text$z=="1.4"),"z"] <- 10
 text[which(text$z=="1.5"),"z"] <- 11
@@ -498,14 +498,12 @@ class(text$z)
 pt.alpha=0.8
 plot_ly(text, scene = scene, 
         x = ~bestx, y = ~besty, z = ~z, marker = list(color = text$spot.colors, 
-                                                      showscale = FALSE, size = 1, opacity = 0.3)) %>% 
-  add_markers() %>% layout( paper_bgcolor = ifelse(dark.theme, 
-                                                   "rgb(0, 0, 0)", "rgb(255, 255, 255)"), scene = list(zaxis = list(title = "", 
-                                                                                                                    range = c(-add.margins, max(text$z) + 
-                                                                                                                                add.margins), showticks = FALSE, showticklabels = FALSE), 
-                                                                                                       xaxis = list(title = "", showticks = FALSE, 
-                                                                                                                    showticklabels = FALSE), yaxis = list(title = "", 
-                                                                                                                                                          showticks = FALSE, showticklabels = FALSE)))
+        showscale = FALSE, size = 1, opacity = 0.3)) %>% 
+        add_markers() %>% layout( paper_bgcolor = ifelse(dark.theme, 
+        "rgb(0, 0, 0)", "rgb(255, 255, 255)"), scene = list(zaxis = list(title = "",
+        range = c(-add.margins, max(text$z) +  add.margins), showticks = FALSE, showticklabels = FALSE), 
+        xaxis = list(title = "", showticks = FALSE, showticklabels = FALSE), 
+        yaxis = list(title = "", showticks = FALSE, showticklabels = FALSE)))
 
 
 
