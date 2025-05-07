@@ -1,0 +1,513 @@
+###
+rm(list = ls())
+gc()
+library(Seurat)
+library(STutility)
+library(magrittr)
+library(dplyr)
+library(Seurat)
+library(imager)
+library(plotly)
+
+# setwd("")
+set.seed(123)
+load("3D_5d_all_image_20230518.rdata")
+# save(se,file = "3D_5d_all_image_20230518.rdata")
+# saveRDS(se,file = "dj_stwhgtf_5d_3D.rds")
+# transforms <- list("3" = list("mirror.x" = T,"mirror.y" = T))
+# se.mirrorx <- WarpImages(se, transforms)
+# ImagePlot(se.mirrorx, method = "raster",darken = TRUE, type = "raw")
+# se <- Create3DStack(se,verbose = TRUE)
+
+stack_3d <- setNames(GetStaffli(se)@scatter.data, c("x", "y", "z", "grid.cell"))
+
+ggplot(stack_3d, aes(x, 2e3 - y)) +
+  geom_point(size = 0.1, color = "lightgray") +
+  facet_wrap(~z, ncol = 1) +
+  theme_void() +
+  theme(plot.background = element_rect(fill = "black"), 
+        plot.title = element_text(colour = "white"), 
+        legend.text = element_text(colour = "white"))
+
+# interpolated.data <- FeaturePlot3D(se, features = "DJKW.28045", return.data = TRUE)
+
+##单独提取出来画图
+object <- se
+features <- "DJKW.22487"
+add.margins = 0#可以修改
+spots = NULL
+mode = "cloud"
+pts.downsample = 5e+05
+zcoords = NULL
+slot = "data"
+min.cutoff = NA
+max.cutoff = NA
+pt.alpha = 5
+pt.size = NULL
+cols = c("navyblue", "cyan", "yellow", "red", "dark red")
+scene = "scene1"
+dark.theme = FALSE
+pt.size <- 0.8#可以修改
+
+st.object <- GetStaffli(object)
+scatter.data <- st.object@scatter.data
+spots <- spots %||% colnames(object)
+values <- FetchData(object = object, vars = features, slot = slot)[spots, 
+                                                                   , drop = T]
+coords <- do.call(rbind, lapply(seq_along(st.object@samplenames), 
+                                function(i) {
+                                  s <- st.object@samplenames[i]
+                                  dims.raw <- as.numeric(st.object@dims[[i]][2:3])
+                                  dims.scaled <- dim(st.object["raw"][[i]])
+                                  sf.xy <- dims.raw[1]/dims.scaled[2]
+                                  coords <- subset(st.object[[]], sample == s)[, c("warped_x", 
+                                                                                   "warped_y")]/sf.xy
+                                  coords$z <- i
+                                  return(coords)
+                                }))
+coords <- coords[spots, ]
+def_z <- unique(coords$z)
+data <- setNames(data.frame(coords, values), c(colnames(coords), 
+                                               features))
+data.list <- split(data, data$z)
+section.input.list <- split(scatter.data, scatter.data$z)
+nxy <- colnames(scatter.data)[1:2] %>% as.numeric()
+
+xmax <- lapply(st.object@dims, function(d) {d[2] %>% as.numeric()}) %>% unlist() %>% max()
+interpolated.data <- do.call(rbind, lapply(seq_along(data.list), 
+                                           function(i) {
+                                             data <- data.list[[i]]
+                                             data <- setNames(data, c("warped_x", "warped_y", 
+                                                                      "z", "value"))
+                                             section.input <- section.input.list[[i]]
+                                             interpolated_data <- interpolate_2D_data(data, 
+                                                                                      section.input, nx = nxy[1], ny = nxy[2], 
+                                                                                      xy.range = apply(coords[, 1:2], 2, range))
+                                           }))
+interpolated.data <- setNames(interpolated.data, 
+                              c("x", "y", "z", "val"))
+interpolated.data <- na.omit(interpolated.data)
+interpolated.data$alpha <- scales::rescale(interpolated.data[, 
+                                                             "val"])
+interpolated.data$spot.colors <- apply(colorRamp(cols)(interpolated.data$alpha), 
+                                       1, function(x) rgb(red = x[1], green = x[2], 
+                                                          blue = x[3], maxColorValue = 255))
+plot_ly(interpolated.data, scene = scene, 
+        x = ~xmax - x, y = ~y, z = ~z, marker = list(color = interpolated.data$spot.colors, 
+                                                     showscale = FALSE, size = pt.size, opacity = pt.alpha)) %>% 
+  add_markers() %>% layout(title = features,
+                           paper_bgcolor = ifelse(dark.theme, 
+                                                  "rgb(0, 0, 0)", "rgb(255, 255, 255)"), scene = list(zaxis = list(title = "", range = c(-add.margins, max(interpolated.data$z) + 
+                                                                                                                                           add.margins), showticks = FALSE, showticklabels = FALSE), 
+                                                                                                      xaxis = list(title = "", showticks = FALSE, 
+                                                                                                                   showticklabels = FALSE), yaxis = list(title = "", 
+                                                                                                                                                         showticks = FALSE, showticklabels = FALSE)))
+
+
+
+
+####平移修改图
+a <- interpolated.data[which(interpolated.data$z=="1"),]
+a$truex <- xmax-a$x
+a[which( (0< a$truex & a$truex<900) &(0<a$y & a$y<600)),3] <- c(5.6)
+a[which( (900< a$truex & a$truex<1200) &(0<a$y & a$y<600)),3] <- c(5.5)
+# a[which( (1200< a$truex & a$truex<1530) &(0<a$y & a$y<600)),3] <- c(5.4)
+a[which( (1530< a$truex & a$truex<1800) &(0<a$y & a$y<600)),3] <- c(5.4)
+
+a[which( (0< a$truex & a$truex<900) &(700<a$y & a$y<900)),3] <- c(5.3)
+a[which( (900< a$truex & a$truex<1200) &(650<a$y & a$y<900)),3] <- c(5.2)
+a[which( (1200< a$truex & a$truex<1530) &(700<a$y & a$y<900)),3] <- c(5.1)
+a[which( (1530< a$truex & a$truex<1800) &(700<a$y & a$y<900)),3] <- c(5)
+
+a[which( (0< a$truex & a$truex<900) &(1100<a$y & a$y<1500)),3] <- c(4.9)
+a[which( (900< a$truex & a$truex<1200) &(1100<a$y & a$y<1500)),3] <- c(4.8)
+a[which( (1200< a$truex & a$truex<1530) &(1100<a$y & a$y<1500)),3] <- c(4.7)
+a[which( (1530< a$truex & a$truex<1800) &(1100<a$y & a$y<1500)),3] <- c(4.6)
+text1 <- a
+c <- NULL
+for (i in unique(text1$z)) {
+  text <- text1[which(text1$z==i),]
+  text$newx <- text$truex-max(text$truex)/2-min(text$truex)/2
+  text$newy <- text$y-max(text$y)/2-min(text$y)/2
+  b <- text
+  c <- rbind(c,b)
+}
+##########第一张切片
+text <- c[which(c$z=="5.6"),]
+text$bestx <- text$newx * cos(52*pi/180) - text$newy * sin(52*pi/180) 
+text$besty <- text$newx * sin(52*pi/180) + text$newy * cos(52*pi/180) 
+text5.6 <- text
+text5.5 <-c[which(c$z=="5.5"),]
+text5.5$bestx <- text5.5$newx * cos(42*pi/180) - text5.5$newy * sin(42*pi/180) 
+text5.5$besty <- text5.5$newx * sin(42*pi/180) + text5.5$newy * cos(42*pi/180)
+text <- text5.5
+text5.4 <-c[which(c$z=="5.4"),]
+text5.4$bestx <- text5.4$newx * cos(45*pi/180) - text5.4$newy * sin(45*pi/180)
+text5.4$besty <- text5.4$newx * sin(45*pi/180) + text5.4$newy * cos(45*pi/180)
+text <- text5.4
+text5.3 <-c[which(c$z=="5.3"),]
+text5.3$bestx <- text5.3$newx * cos((45-1.5)*pi/180) - text5.3$newy * sin((45-1.5)*pi/180)
+text5.3$besty <- text5.3$newx * sin((45-1.5)*pi/180) + text5.3$newy * cos((45-1.5)*pi/180)
+text <- text5.3
+text5.2 <-c[which(c$z=="5.2"),]
+text5.2$bestx <- text5.2$newx * cos(45*pi/180) - text5.2$newy * sin(45*pi/180)
+text5.2$besty <- text5.2$newx * sin(45*pi/180) + text5.2$newy * cos(45*pi/180)
+text <- text5.2
+text5.1 <-c[which(c$z=="5.1"),]
+text5.1$bestx <- text5.1$newx * cos((35)*pi/180) - text5.1$newy * sin((35)*pi/180)
+text5.1$besty <- text5.1$newx * sin((35)*pi/180) + text5.1$newy * cos((35)*pi/180)
+text <- text5.1
+text <- c[which(c$z=="5"),]
+text$bestx <- text$newx * cos((40)*pi/180) - text$newy * sin((40)*pi/180) 
+text$besty <- text$newx * sin((40)*pi/180) + text$newy * cos((40)*pi/180) 
+text5 <- text
+text <- c[which(c$z=="4.9"),]
+text$bestx <- text$newx * cos((45-10)*pi/180) - text$newy * sin((45-10)*pi/180) 
+text$besty <- text$newx * sin((45-10)*pi/180) + text$newy * cos((45-10)*pi/180) 
+text$bestx <- text$bestx-2
+text$besty <- text$besty-2
+text4.9 <- text
+text <- c[which(c$z=="4.8"),]
+text$bestx <- text$newx * cos((45+4)*pi/180) - text$newy * sin((45+4)*pi/180) 
+text$besty <- text$newx * sin((45+4)*pi/180) + text$newy * cos((45+4)*pi/180) 
+text4.8 <- text
+text <- c[which(c$z=="4.7"),]
+text$bestx <- text$newx * cos((45-2)*pi/180) - text$newy * sin((45-2)*pi/180) 
+text$besty <- text$newx * sin((45-2)*pi/180) + text$newy * cos((45-2)*pi/180) 
+text4.7 <- text
+text <- c[which(c$z=="4.6"),]
+text$bestx <- text$newx * cos((46.5)*pi/180) - text$newy * sin((46.5)*pi/180) 
+text$besty <- text$newx * sin((46.5)*pi/180) + text$newy * cos((46.5)*pi/180) 
+text4.6 <- text
+
+# text <- rbind(text5.6,text5.5,text5.4,text5.3,text5.2,text5.1,text5,text4.9,text4.8,text4.7,text4.6)
+text <- rbind(text5.6,text5.5,text5.2,text5.1,text5,text4.9,text4.8,text4.7,text4.6)
+
+text$bestx <- -text$bestx
+text$besty <- -text$besty
+phot1 <- text
+
+
+a <- interpolated.data[which(interpolated.data$z=="2"),]
+a$truex <- xmax-a$x
+a[which( (1000< a$truex & a$truex<1200) &(900<a$y & a$y<2000)),3] <- c(4.5)
+
+a[which( (1500< a$truex & a$truex<1900) &(600<a$y & a$y<900)),3] <- c(4.4)
+a[which( (1200< a$truex & a$truex<1500) &(600<a$y & a$y<900)),3] <- c(4.3)
+
+a[which( (1500< a$truex & a$truex<2000) &(0<a$y & a$y<500)),3] <- c(4.2)
+
+# a[which( (0< a$truex & a$truex<1000) &(600<a$y & a$y<900)),3] <- c(4.1)
+# 
+# a[which( (1300< a$truex & a$truex<1600) &(0<a$y & a$y<500)),3] <- c(4)
+# a[which( (1000< a$truex & a$truex<1300) &(0<a$y & a$y<500)),3] <- c(3.9)
+# a[which( (0< a$truex & a$truex<1000) &(0<a$y & a$y<500)),3] <- c(3.8)
+a <- a[-which(a$z=="2"),]
+text1 <- a
+c <- NULL
+for (i in unique(text1$z)) {
+  text <- text1[which(text1$z==i),]
+  text$newx <- text$truex-max(text$truex)/2-min(text$truex)/2
+  text$newy <- text$y-max(text$y)/2-min(text$y)/2
+  b <- text
+  c <- rbind(c,b)
+}
+#######第二章切片
+# text <- c[which(c$z=="4.5"),]
+# text$bestx <- text$newx * cos(12.2*pi/180) - text$newy * sin(12.2*pi/180) 
+# text$besty <- text$newx * sin(12.2*pi/180) + text$newy * cos(12.2*pi/180) 
+# text4.5<- text
+table(c$z)
+text <- c[which(c$z=="4.5"),]
+text$bestx <- text$newx * cos((45.5)*pi/180) - text$newy * sin((45.5)*pi/180) 
+text$besty <- text$newx * sin((45.5)*pi/180) + text$newy * cos((45.5)*pi/180) 
+text$bestx <- text$bestx+5
+text$besty <- text$besty-5
+text4.5<- text
+text <- c[which(c$z=="4.4"),]
+text$bestx <- text$newx * cos((45-3)*pi/180) - text$newy * sin((45-3)*pi/180) 
+text$besty <- text$newx * sin((45-3)*pi/180) + text$newy * cos((45-3)*pi/180)
+text4.4<- text
+text <- c[which(c$z=="4.3"),]
+text$bestx <- text$newx * cos((45-3.5)*pi/180) - text$newy * sin((45-3.5)*pi/180) 
+text$besty <- text$newx * sin((45-3.5)*pi/180) + text$newy * cos((45-3.5)*pi/180) 
+text4.3<- text
+text <- c[which(c$z=="4.2"),]
+text$bestx <- text$newx * cos((45-1.5)*pi/180) - text$newy * sin((45-1.5)*pi/180) 
+text$besty <- text$newx * sin((45-1.5)*pi/180) + text$newy * cos((45-1.5)*pi/180) 
+text4.2<- text
+# text <- c[which(c$z=="4.1"),]
+# text$bestx <- text$newx * cos(45-1.4*pi/180) - text$newy * sin(45-1.4*pi/180) 
+# text$besty <- text$newx * sin(45-1.4*pi/180) + text$newy * cos(45-1.4*pi/180) 
+# text4.1<- text
+# text <- c[which(c$z=="4"),]
+# text$bestx <- text$newx * cos(45+1.5*pi/180) - text$newy * sin(45+1.5*pi/180) 
+# text$besty <- text$newx * sin(45+1.5*pi/180) + text$newy * cos(45+1.5*pi/180) 
+# text4<- text
+# text <- c[which(c$z=="3.9"),]
+# text$bestx <- text$newx * cos(45+6*pi/180) - text$newy * sin(45+6*pi/180) 
+# text$besty <- text$newx * sin(45+6*pi/180) + text$newy * cos(45+6*pi/180) 
+# text3.9<- text
+# text <- c[which(c$z=="3.8"),]
+# text$bestx <- text$newx * cos(45+10*pi/180) - text$newy * sin(45+10*pi/180) 
+# text$besty <- text$newx * sin(45+10*pi/180) + text$newy * cos(45+10*pi/180) 
+# text3.8<- text
+
+# text <- rbind(text4.5,text4.4,text4.3,text4.2,text4.1,text4,text3.9,text3.8)
+text <- rbind(text4.5,text4.4,text4.3,text4.2)
+text$bestx <- -text$bestx
+text$besty <- -text$besty
+phot2 <- text
+
+
+
+a <- interpolated.data[which(interpolated.data$z=="3"),]
+a$truex <- xmax-a$x
+
+a[which( (1500< a$truex & a$truex<2000) &(0<a$y & a$y<600)),3] <- c(3.7)
+a[which( (1300< a$truex & a$truex<1500) &(0<a$y & a$y<600)),3] <- c(3.6)
+a[which( (1000< a$truex & a$truex<1300) &(0<a$y & a$y<600)),3] <- c(3.5)
+a[which( (0< a$truex & a$truex<900) &(0<a$y & a$y<600)),3] <- c(3.4)
+
+
+a[which( (1500< a$truex & a$truex<2000) &(600<a$y & a$y<1000)),3] <- c(3.3)
+a[which( (1300< a$truex & a$truex<1500) &(600<a$y & a$y<1000)),3] <- c(3.2)
+a[which( (1000< a$truex & a$truex<1300) &(600<a$y & a$y<890)),3] <- c(3.1)
+a[which( (0< a$truex & a$truex<950) &(600<a$y & a$y<1000)),3] <- c(3)
+# a <- a[-which( (1180< a$truex & a$truex<1210) &(890<a$y & a$y<910)),]
+
+
+a[which( (1500< a$truex & a$truex<2000) &(1000<a$y & a$y<1500)),3] <- c(2.9)
+a[which( (1300< a$truex & a$truex<1500) &(1000<a$y & a$y<1500)),3] <- c(2.8)
+a[which( (1000< a$truex & a$truex<1300) &(1000<a$y & a$y<1500)),3] <- c(2.7)
+a[which( (0< a$truex & a$truex<950) &(1000<a$y & a$y<1500)),3] <- c(2.6)
+text1 <- a
+c <- NULL
+for (i in unique(text1$z)) {
+  text <- text1[which(text1$z==i),]
+  text$newx <- text$truex-max(text$truex)/2-min(text$truex)/2
+  text$newy <- text$y-max(text$y)/2-min(text$y)/2
+  b <- text
+  c <- rbind(c,b)
+}
+#########第三章切片
+
+text <- c[which(c$z=="3.7"),]
+text$bestx <- text$newx * cos(10*pi/180) - text$newy * sin(10*pi/180) 
+text$besty <- text$newx * sin(10*pi/180) + text$newy * cos(10*pi/180) 
+text3.7<- text
+text <- c[which(c$z=="3.6"),]
+text$bestx <- text$newx * cos((45-15)*pi/180) - text$newy * sin((45-15)*pi/180) 
+text$besty <- text$newx * sin((45-15)*pi/180) + text$newy * cos((45-15)*pi/180) 
+text3.6<- text
+text <- c[which(c$z=="3.5"),]
+text$bestx <- text$newx * cos((45-8)*pi/180) - text$newy * sin((45-8)*pi/180) 
+text$besty <- text$newx * sin((45-8)*pi/180) + text$newy * cos((45-8)*pi/180) 
+text3.5<- text
+text <- c[which(c$z=="3.4"),]
+text$bestx <- text$newx * cos((45+12.5)*pi/180) - text$newy * sin((45+12.5)*pi/180) 
+text$besty <- text$newx * sin((45+12.5)*pi/180) + text$newy * cos((45+12.5)*pi/180) 
+text3.4<- text
+text <- c[which(c$z=="3.3"),]
+text$bestx <- text$newx * cos((45-27)*pi/180) - text$newy * sin((45-27)*pi/180) 
+text$besty <- text$newx * sin((45-27)*pi/180) + text$newy * cos((45-27)*pi/180) 
+text$bestx <- text$bestx -11
+text$besty <- text$besty -5
+text3.3<- text
+text <- c[which(c$z=="3.2"),]
+text$bestx <- text$newx * cos((45+2)*pi/180) - text$newy * sin((45+2)*pi/180) 
+text$besty <- text$newx * sin((45+2)*pi/180) + text$newy * cos((45+2)*pi/180) 
+text$bestx <- text$bestx +5
+text$besty <- text$besty +5
+text3.2<- text
+text <- c[which(c$z=="3.1"),]
+text$bestx <- text$newx * cos((45-5)*pi/180) - text$newy * sin((45-5)*pi/180) 
+text$besty <- text$newx * sin((45-5)*pi/180) + text$newy * cos((45-5)*pi/180)
+text$bestx <- text$bestx +5
+text$besty <- text$besty +5
+text3.1<- text
+text <- c[which(c$z=="3"),]
+text$bestx <- text$newx * cos((45-15)*pi/180) - text$newy * sin((45-15)*pi/180) 
+text$besty <- text$newx * sin((45-15)*pi/180) + text$newy * cos((45-15)*pi/180) 
+text$bestx <- text$bestx +5
+text$besty <- text$besty +5
+text3<- text
+text <- c[which(c$z=="2.9"),]
+text$bestx <- text$newx * cos((45+2)*pi/180) - text$newy * sin((45+2)*pi/180) 
+text$besty <- text$newx * sin((45+2)*pi/180) + text$newy * cos((45+2)*pi/180) 
+text2.9<- text
+text <- c[which(c$z=="2.8"),]
+text$bestx <- text$newx * cos((45-8)*pi/180) - text$newy * sin((45-8)*pi/180) 
+text$besty <- text$newx * sin((45-8)*pi/180) + text$newy * cos((45-8)*pi/180) 
+text$bestx <- text$bestx +3
+text$besty <- text$besty +3
+text2.8<- text
+text <- c[which(c$z=="2.7"),]
+text$bestx <- text$newx * cos((45-4)*pi/180) - text$newy * sin((45-4)*pi/180) 
+text$besty <- text$newx * sin((45-4)*pi/180) + text$newy * cos((45-4)*pi/180) 
+text2.7<- text
+text <- c[which(c$z=="2.6"),]
+text$bestx <- text$newx * cos((45-8)*pi/180) - text$newy * sin((45-8)*pi/180) 
+text$besty <- text$newx * sin((45-8)*pi/180) + text$newy * cos((45-8)*pi/180) 
+text$bestx <- text$bestx +3
+text$besty <- text$besty +3
+text2.6<- text
+
+# text <- rbind(text3.7,text3.6,text3.5,text3.4,text3.3,text3.2,text3.1,text3,text2.9,text2.8,text2.7)
+text <- rbind(text3.5,text3.2,text3.1,text3,text2.8,text2.6)
+
+phot3 <- text
+
+
+a <- interpolated.data[which(interpolated.data$z=="4"),]
+a$truex <- xmax-a$x
+a[which( (1550< a$truex & a$truex<2000) &(1000<a$y & a$y<1500)),3] <- c(2.5)
+a[which( (1250< a$truex & a$truex<1550) &(1000<a$y & a$y<1500)),3] <- c(2.4)
+a[which( (1000< a$truex & a$truex<1250) &(1000<a$y & a$y<1500)),3] <- c(2.3)
+a[which( (0< a$truex & a$truex<1000) &(1100<a$y & a$y<1500)),3] <- c(2.2)
+
+a[which( (1550< a$truex & a$truex<2000) &(600<a$y & a$y<1000)),3] <- c(2.1)
+a[which( (1250< a$truex & a$truex<1550) &(600<a$y & a$y<1000)),3] <- c(2)
+a[which( (1000< a$truex & a$truex<1250) &(600<a$y & a$y<1000)),3] <- c(1.9)
+a[which( (0< a$truex & a$truex<1000) &(600<a$y & a$y<950)),3] <- c(1.8)
+
+a[which( (1550< a$truex & a$truex<2000) &(0<a$y & a$y<600)),3] <- c(1.7)
+a[which( (1250< a$truex & a$truex<1550) &(0<a$y & a$y<600)),3] <- c(1.6)
+a[which( (1000< a$truex & a$truex<1250) &(0<a$y & a$y<600)),3] <- c(1.5)
+a[which( (0< a$truex & a$truex<1000) &(0<a$y & a$y<600)),3] <- c(1.4)
+text1 <- a
+c <- NULL
+for (i in unique(text1$z)) {
+  text <- text1[which(text1$z==i),]
+  text$newx <- text$truex-max(text$truex)/2-min(text$truex)/2
+  text$newy <- text$y-max(text$y)/2-min(text$y)/2
+  b <- text
+  c <- rbind(c,b)
+}
+###########第四章图片旋转
+text <- c[which(c$z=="2.5"),]
+text$bestx <- text$newx * cos((40-5.8)*pi/180) - text$newy * sin((40-5.8)*pi/180) 
+text$besty <- text$newx * sin((40-5.8)*pi/180) + text$newy * cos((40-5.8)*pi/180) 
+text2.5<- text
+text <- c[which(c$z=="2.4"),]
+# text$bestx <- text$newx * cos((40-11*pi/180) - text$newy * sin(40-11*pi/180) 
+# text$besty <- text$newx * sin((40-11*pi/180) + text$newy * cos(40-11*pi/180) 
+
+text$bestx <- text$newx * cos((40-13)*pi/180) - text$newy * sin((40-13)*pi/180) 
+text$besty <- text$newx * sin((40-13)*pi/180) + text$newy * cos((40-13)*pi/180) 
+text$bestx <- text$bestx +3
+text$besty <- text$besty +3
+text2.4<- text
+text <- c[which(c$z=="2.3"),]
+text$bestx <- text$newx * cos((40+8)*pi/180) - text$newy * sin((40+8)*pi/180) 
+text$besty <- text$newx * sin((40+8)*pi/180) + text$newy * cos((40+8)*pi/180) 
+text$bestx <- text$bestx +3
+text$besty <- text$besty +3
+text2.3<- text
+text <- c[which(c$z=="2.2"),]
+text$bestx <- text$newx * cos((40+12)*pi/180) - text$newy * sin((40+12)*pi/180) 
+text$besty <- text$newx * sin((40+12)*pi/180) + text$newy * cos((40+12)*pi/180) 
+text$bestx <- text$bestx +3
+text$besty <- text$besty +3
+text2.2<- text
+text <- c[which(c$z=="2.1"),]
+text$bestx <- text$newx * cos((40-2)*pi/180) - text$newy * sin((40-2)*pi/180) 
+text$besty <- text$newx * sin((40-2)*pi/180) + text$newy * cos((40-2)*pi/180) 
+text2.1<- text
+text <- c[which(c$z=="2"),]
+text$bestx <- text$newx * cos((40+7)*pi/180) - text$newy * sin((40+7)*pi/180) 
+text$besty <- text$newx * sin((40+7)*pi/180) + text$newy * cos((40+7)*pi/180)
+text$bestx <- text$bestx +3
+text$besty <- text$besty +3
+text2<- text
+text <- c[which(c$z=="1.9"),]
+text$bestx <- text$newx * cos((40+8)*pi/180) - text$newy * sin((40+8)*pi/180) 
+text$besty <- text$newx * sin((40+8)*pi/180) + text$newy * cos((40+8)*pi/180) 
+text1.9<- text
+text <- c[which(c$z=="1.8"),]
+text$bestx <- text$newx * cos((40+9)*pi/180) - text$newy * sin((40+9)*pi/180) 
+text$besty <- text$newx * sin((40+9)*pi/180) + text$newy * cos((40+9)*pi/180) 
+text1.8<- text
+text <- c[which(c$z=="1.7"),]
+text$bestx <- text$newx * cos((40+7)*pi/180) - text$newy * sin((40+7)*pi/180) 
+text$besty <- text$newx * sin((40+7)*pi/180) + text$newy * cos((40+7)*pi/180) 
+text1.7<- text
+text <- c[which(c$z=="1.6"),]
+text$bestx <- text$newx * cos((40+3)*pi/180) - text$newy * sin((40+3)*pi/180) 
+text$besty <- text$newx * sin((40+3)*pi/180) + text$newy * cos((40+3)*pi/180) 
+text$bestx <- text$bestx +6
+text$besty <- text$besty +3
+text1.6<- text
+text <- c[which(c$z=="1.5"),]
+text$bestx <- text$newx * cos((40+0)*pi/180) - text$newy * sin((40+0)*pi/180) 
+text$besty <- text$newx * sin((40+0)*pi/180) + text$newy * cos((40+0)*pi/180) 
+text$bestx <- text$bestx +3
+text$besty <- text$besty +3
+text1.5<- text
+text <- c[which(c$z=="1.4"),]
+text$bestx <- text$newx * cos((40+14)*pi/180) - text$newy * sin((40+14)*pi/180) 
+text$besty <- text$newx * sin((40+14)*pi/180) + text$newy * cos((40+14)*pi/180) 
+text1.4<- text
+
+# text <- rbind(text2.5,text2.4,text2.3,text2.2,text2.1,text2,text1.9,text1.8,text1.7,text1.6,text1.5,text1.4)
+text <- rbind(text2.4,text2.3,text2.2,text2.1,text2,text1.9,text1.8,text1.6,text1.5,text1.4)
+
+phot4 <- text
+
+text <- rbind(phot1,phot2,phot3,phot4)
+# text <- rbind(phot3,phot4)
+add.margins=0
+
+table(text$z)
+text[which(text$z=="1.4"),"z"] <- 10
+text[which(text$z=="1.5"),"z"] <- 11
+text[which(text$z=="1.6"),"z"] <- 12
+text[which(text$z=="1.8"),"z"] <- 13
+text[which(text$z=="1.9"),"z"] <- 14
+
+text[which(text$z=="2"),"z"] <- 15
+text[which(text$z=="2.1"),"z"] <- 16
+text[which(text$z=="2.2"),"z"] <- 17
+text[which(text$z=="2.3"),"z"] <- 18
+text[which(text$z=="2.4"),"z"] <- 19
+
+text[which(text$z=="2.6"),"z"] <- 20
+text[which(text$z=="2.8"),"z"] <- 21
+text[which(text$z=="3"),"z"] <- 22
+text[which(text$z=="3.1"),"z"] <- 23
+text[which(text$z=="3.2"),"z"] <- 24
+
+text[which(text$z=="3.5"),"z"] <- 25
+text[which(text$z=="4.2"),"z"] <- 26
+text[which(text$z=="4.3"),"z"] <- 27
+text[which(text$z=="4.4"),"z"] <- 28
+text[which(text$z=="4.5"),"z"] <- 29
+text[which(text$z=="4.6"),"z"] <- 30
+
+text[which(text$z=="4.7"),"z"] <- 31
+text[which(text$z=="4.8"),"z"] <- 32
+text[which(text$z=="4.9"),"z"] <- 33
+text[which(text$z=="5"),"z"] <- 34
+text[which(text$z=="5.1"),"z"] <- 35
+text[which(text$z=="5.2"),"z"] <- 36
+text[which(text$z=="5.5"),"z"] <- 37
+text[which(text$z=="5.6"),"z"] <- 38
+
+
+class(text$z)
+pt.alpha=0.8
+plot_ly(text, scene = scene, 
+        x = ~bestx, y = ~besty, z = ~z, marker = list(color = text$spot.colors, 
+                                                      showscale = FALSE, size = 1, opacity = 0.3)) %>% 
+  add_markers() %>% layout( paper_bgcolor = ifelse(dark.theme, 
+                                                   "rgb(0, 0, 0)", "rgb(255, 255, 255)"), scene = list(zaxis = list(title = "", 
+                                                                                                                    range = c(-add.margins, max(text$z) + 
+                                                                                                                                add.margins), showticks = FALSE, showticklabels = FALSE), 
+                                                                                                       xaxis = list(title = "", showticks = FALSE, 
+                                                                                                                    showticklabels = FALSE), yaxis = list(title = "", 
+                                                                                                                                                          showticks = FALSE, showticklabels = FALSE)))
+
+
+
+
+
